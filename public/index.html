@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Fitness Tracker</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --secondary: #6366f1;
+            --danger: #ef4444;
+            --bg: #f8fafc;
+            --card: #ffffff;
+        }
+
+        body { 
+            font-family: 'Inter', -apple-system, sans-serif; 
+            background-color: var(--bg); 
+            display: flex; 
+            justify-content: center; 
+            padding: 40px 20px; 
+            margin: 0;
+        }
+
+        .card { 
+            background: var(--card); 
+            padding: 30px; 
+            border-radius: 20px; 
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); 
+            width: 100%; 
+            max-width: 400px; 
+        }
+
+        h2 { color: #1e293b; margin-top: 0; text-align: center; }
+
+        input { 
+            width: 100%; padding: 14px; margin: 8px 0; 
+            border: 2px solid #e2e8f0; border-radius: 12px; 
+            box-sizing: border-box; transition: 0.3s;
+        }
+
+        input:focus { border-color: var(--primary); outline: none; }
+
+        button { 
+            width: 100%; padding: 14px; border: none; border-radius: 12px; 
+            cursor: pointer; color: white; font-weight: 600; margin-top: 10px; transition: 0.3s;
+        }
+
+        .btn-green { background-color: var(--primary); }
+        .btn-green:hover { background-color: var(--secondary); transform: translateY(-2px); }
+        .btn-red { background-color: var(--danger); margin-top: 20px; }
+
+        ul { list-style: none; padding: 0; margin-top: 25px; }
+        
+        li { 
+            background: #f1f5f9; padding: 16px; margin-bottom: 12px; 
+            border-radius: 12px; border-left: 5px solid var(--primary);
+            animation: fadeIn 0.5s ease;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; } }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <!-- Секция входа -->
+    <div class="card" id="auth-section">
+        <h2>Вход в Fitness Tracker</h2>
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="Пароль">
+        <button class="btn-green" type="button" onclick="login()">Войти</button>
+    </div>
+    
+    <!-- Секция дашборда -->
+    <div class="card hidden" id="app-section">
+        <h2>Мои тренировки</h2>
+        <input type="text" id="workoutName" placeholder="Название упражнения">
+        <input type="number" id="sets" placeholder="Подходы">
+        <input type="number" id="reps" placeholder="Повторения">
+        <button class="btn-green" type="button" onclick="addWorkout()">Добавить тренировку</button>
+        
+        <ul id="workout-list"></ul>
+        
+        <button class="btn-red" type="button" onclick="logout()">Выйти</button>
+    </div>
+
+    <script>
+        if (localStorage.getItem('token')) showApp();
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            
+            const data = await res.json();
+            if (res.ok) {
+                localStorage.setItem('token', data.token);
+                showApp();
+            } else {
+                alert('Ошибка: ' + (data.message || 'Неверные данные'));
+            }
+        }
+
+        async function showApp() {
+            document.getElementById('auth-section').classList.add('hidden');
+            document.getElementById('app-section').classList.remove('hidden');
+            
+            const res = await fetch('/api/workouts', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            const data = await res.json();
+            const list = document.getElementById('workout-list');
+
+            if (data.workouts && data.workouts.length > 0) {
+                list.innerHTML = data.workouts.map(w => `
+                    <li>
+                        <div>
+                            <strong>${w.exerciseName}</strong><br>
+                            Подходы: ${w.sets} · Повторения: ${w.reps}
+                        </div>
+                        <button onclick="deleteWorkout('${w._id}')" 
+                                style="background: #ef4444; width: auto; padding: 8px 12px; font-size: 12px; border-radius: 8px;">
+                            Удалить
+                        </button>
+                    </li>
+                `).join('');
+            } else {
+                list.innerHTML = '<p style="text-align:center; color:#64748b;">Пока тренировок нет. Добавь первую!</p>';
+            }
+        }
+
+        async function addWorkout() {
+            const name = document.getElementById('workoutName').value;
+            const sets = document.getElementById('sets').value;
+            const reps = document.getElementById('reps').value;
+
+            if (!name || !sets || !reps) return alert('Заполните все поля!');
+
+            const res = await fetch('/api/workouts', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}` 
+                },
+                body: JSON.stringify({ exerciseName: name, sets, reps })
+            });
+
+            if (res.ok) {
+                document.getElementById('workoutName').value = '';
+                document.getElementById('sets').value = '';
+                document.getElementById('reps').value = '';
+                showApp(); 
+            } else {
+                const data = await res.json();
+                alert('Ошибка: ' + JSON.stringify(data));
+            }
+        }
+
+        async function deleteWorkout(id) {
+            if (!confirm('Удалить это упражнение?')) return;
+
+            const res = await fetch(`/api/workouts/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+
+            if (res.ok) {
+                showApp();
+            } else {
+                alert('Ошибка при удалении');
+            }
+        }
+
+        function logout() { 
+            localStorage.removeItem('token'); 
+            location.reload(); 
+        }
+    </script>
+</body>
+</html>
