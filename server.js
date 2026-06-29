@@ -25,9 +25,11 @@ const workoutRoutes = require('./routes/workoutRoutes');
 app.use('/api/auth', authRoutes);
 app.use('/api/workouts', workoutRoutes);
 
-// Теперь при обращении к корню будет автоматически отдаваться public/index.html
+// Используем абсолютный путь к папке public
+app.use(express.static(path.join(__dirname, 'public')));
+
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // --- ЗАПУСК СЕРВЕРА ---
